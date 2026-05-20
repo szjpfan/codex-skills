@@ -16,6 +16,28 @@ CodexBridge 仓库中与飞书接入直接相关的文件：
 | `scripts/service/install-launchd-user.sh` | macOS launchd 服务安装脚本（通过 `PLATFORM=feishu` 参数化） |
 | `scripts/service/run-weixin-service.mjs` | 通用服务 runner（通过 `--platform feishu` 参数化） |
 
+## Skill 自带安装资源
+
+当远程 `Gan-Xing/CodexBridge` 还没有飞书实现时，本 skill 提供可直接落盘的实现资源：
+
+| Skill 文件 | 作用 |
+|------|------|
+| `scripts/install_feishu_support.mjs` | 在目标 CodexBridge 仓库内补齐飞书源码、CLI 入口、依赖和 Codex 订阅路径保护 |
+| `assets/feishu-files/src/platforms/feishu/plugin.ts` | 飞书平台插件源码模板 |
+| `assets/feishu-files/src/runtime/feishu_bridge_runtime.ts` | 飞书 runtime 源码模板 |
+| `assets/feishu-files/test/platforms/feishu/plugin.test.ts` | 飞书插件单元测试 |
+| `assets/feishu-files/config/examples/feishu.service.env.example` | 飞书服务环境变量示例 |
+
+推荐先运行：
+
+```bash
+node ~/.codex/skills/feishu-codexbridge-connector/scripts/install_feishu_support.mjs /path/to/CodexBridge
+cd /path/to/CodexBridge
+npm install
+npm run typecheck
+npx tsx --test test/platforms/feishu/plugin.test.ts
+```
+
 ## 数据流
 
 ```
