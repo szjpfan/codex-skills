@@ -7,7 +7,7 @@ description: 将飞书机器人接入 CodexBridge，使飞书消息通过 Codex 
 
 ## 适用边界
 
-这个 skill 解决"把飞书机器人接入 CodexBridge"的完整流程：拉仓 → 配置凭据 → 构建 → 启动/常驻服务 → 验证。
+这个 skill 解决"把飞书机器人接入 CodexBridge"的完整流程：拉仓 → 补齐飞书源码 → 配置凭据 → 构建 → 启动/常驻服务 → 验证。
 
 - 用户要接入飞书：使用此 skill
 - 用户要管理已部署的飞书服务（重启、查日志、卸载）：使用此 skill
@@ -29,7 +29,7 @@ description: 将飞书机器人接入 CodexBridge，使飞书消息通过 Codex 
 → BridgeRuntime → BridgeCoordinator → Codex app-server (`openai-default`) → 回复逆路径返回
 ```
 
-完成接入后，运行 `npm run feishu:serve` 启动服务；macOS 上可通过 launchd 常驻。
+如果仓库还没有飞书源码，先运行本 skill 自带的 `scripts/install_feishu_support.mjs` 补齐实现。完成接入后，运行 `npm run feishu:serve` 启动服务；macOS 上可通过 launchd 常驻。
 
 ## 操作流程
 
@@ -45,7 +45,37 @@ npm install
 
 如果用户指定了不同的安装目录，使用用户指定的路径。
 
-### 2. 配置飞书凭据
+### 2. 补齐飞书平台实现
+
+先检查当前 CodexBridge 是否已有飞书实现：
+
+```bash
+test -f src/platforms/feishu/plugin.ts && test -f src/runtime/feishu_bridge_runtime.ts
+```
+
+如果缺失，运行 skill 自带安装脚本。将 `<skill-dir>` 替换为当前 skill 目录，通常是 `~/.codex/skills/feishu-codexbridge-connector`：
+
+```bash
+node <skill-dir>/scripts/install_feishu_support.mjs "$(pwd)"
+npm install
+npm run typecheck
+npx tsx --test test/platforms/feishu/plugin.test.ts
+```
+
+脚本会自动写入：
+
+- `src/platforms/feishu/plugin.ts`
+- `src/runtime/feishu_bridge_runtime.ts`
+- `test/platforms/feishu/plugin.test.ts`
+- `config/examples/feishu.service.env.example`
+- `package.json` 的 `feishu:serve` script 和 `@larksuiteoapi/node-sdk` 依赖
+- `src/cli.ts` 的 `feishu serve` 命令
+- `src/index.ts`、`src/i18n/index.ts` 的 Feishu 注册和文案
+- `src/providers/codex/app_client.ts` 的 `OPENAI_API_KEY` 默认剥离逻辑，避免误走 API 计费路径
+
+如果脚本提示 `anchor not found`，说明上游 CodexBridge 结构变了；读取 [references/architecture.md](references/architecture.md) 和脚本源码，按同样文件边界手动适配。
+
+### 3. 配置飞书凭据
 
 向用户询问以下信息，逐一收集（注意不要打印完整密钥到日志里）：
 
@@ -76,7 +106,7 @@ CODEX_REAL_BIN=/usr/local/bin/codex
 
 如果用户明确要求走 OpenAI API 计费路径，才允许配置 `OPENAI_API_KEY`；否则必须避免把 `OPENAI_API_KEY` 传给 Codex app-server。
 
-### 3. 构建与类型检查
+### 4. 构建与类型检查
 
 ```bash
 npm run typecheck
@@ -85,7 +115,7 @@ npm run build
 
 两者都必须通过才能继续。
 
-### 4. 跑飞书插件单元测试
+### 5. 跑飞书插件单元测试
 
 ```bash
 node ./scripts/test.mjs test/platforms/feishu/plugin.test.ts
@@ -93,7 +123,7 @@ node ./scripts/test.mjs test/platforms/feishu/plugin.test.ts
 
 必须全部通过。
 
-### 5. 一次性启动烟测
+### 6. 一次性启动烟测
 
 用临时 state 目录启动，禁用内嵌 Native API，确认飞书 WebSocket 能连上：
 
@@ -116,7 +146,7 @@ rm -f /tmp/codexbridge-feishu-smoke/runtime/feishu-serve.lock
 
 如果出现认证错误，回到步骤 2 检查凭据。
 
-### 6. 安装常驻服务（macOS launchd）
+### 7. 安装常驻服务（macOS launchd）
 
 若用户的 macOS 上已有旧飞书机器人 launchd 服务，先卸载：
 
@@ -158,7 +188,7 @@ LABEL=com.ganxing.codexbridge-feishu bash scripts/service/status-launchd-user.sh
 
 期望：`state = running`
 
-### 7. 验证对话
+### 8. 验证对话
 
 在飞书中向机器人发送一条测试消息（如 "你好"），确认收到回复。
 
@@ -208,8 +238,12 @@ launchctl bootout "gui/$UID" "com.ganxing.codexbridge-feishu"
 ```
 feishu-codexbridge-connector/
 ├── SKILL.md              ← 当前文件（操作流程）
+├── scripts/
+│   └── install_feishu_support.mjs
+├── assets/
+│   └── feishu-files/     ← 飞书平台源码模板
 └── references/
     └── architecture.md   ← 架构说明与关键文件索引
 ```
 
-此 skill 不包含脚本；所有操作直接使用 CodexBridge 仓库内已有脚本和 CLI。
+此 skill 的安装脚本只写 CodexBridge 源码和 package 配置，不写任何密钥。飞书凭据仍必须在目标电脑本地配置。
